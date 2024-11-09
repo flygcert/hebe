@@ -429,6 +429,7 @@ class HebeProjects
 
                                         $source = $this->_clean_path($working_path, 'right') . DS . $this->_clean_path($path['source']);
                                         $destination = $this->_clean_path($dest, 'right') . DS . $this->_clean_path($path['destination']);
+                                        $recursive = $path['recursive'] ?? false;
 
                                         if (!$path['destination']) {
                                             if ($platform === 'custom' && $rename) {
@@ -452,29 +453,17 @@ class HebeProjects
                                             $failed_nodes["msg"][] = "            └ node failed: source not found -> " . $path['source'];
                                             $failed_nodes["count"]++;
                                         } else {
-                                            if ($relative) {
-                                                $source = $this->relativePath($destination, $source);
+                                            if ($recursive) {
+                                                foreach (glob($source . '/*') as $tnode) {
+                                                    $file = basename($tnode);
 
-                                                if (!symlink($source, $destination)) {
-                                                    $failed_nodes["msg"][] = "            └ node failed: link error -> " . $path['source'];
-                                                    $failed_nodes["count"]++;
-                                                }
+                                                    $newSrc  = $source . '/' . $file;
+                                                    $newDest = $destination . '/' . $file;
 
-                                                if (!file_exists($destination)) {
-                                                    $source = substr($source, 3);
-                                                    exec('rm -rf ' . $destination);
-
-                                                    if (!symlink($source, $destination)) {
-                                                        $failed_nodes["msg"][] = "            └ node failed: link error -> " . $path['source'];
-                                                        $failed_nodes["count"]++;
-                                                    }
+                                                    $this->link($newSrc, $newDest, $relative, $path, $failed_nodes);
                                                 }
                                             } else {
-                                                die;
-                                                if (!symlink($source, $destination)) {
-                                                    $failed_nodes["msg"][] = "            └ node failed: link error -> " . $path['source'];
-                                                    $failed_nodes["count"]++;
-                                                }
+                                                $this->link($source, $destination, $relative, $path, $failed_nodes);
                                             }
                                         }
                                     }
@@ -499,6 +488,43 @@ class HebeProjects
 
         if (!$silent) {
             Hebe::message("");
+        }
+    }
+
+    protected function link($source, $destination, $relative, $path, &$failed_nodes)
+    {
+        if (!file_exists($destination)) {
+            exec('mkdir -p ' . $destination);
+        }
+        exec('rm -rf ' . $destination);
+
+        if ($relative) {
+            $source = $this->relativePath($destination, $source);
+
+            if (!symlink($source, $destination)) {
+                $failed_nodes["msg"][] = "            └ node failed: link error -> " . $path['source'];
+                $failed_nodes["count"]++;
+            }
+
+            if (!realpath($destination)) {
+                $source = substr($source, 3);
+                exec('rm -rf ' . $destination);
+
+                if (!symlink($source, $destination)) {
+                    $failed_nodes["msg"][] = "            └ node failed: link error -> " . $path['source'];
+                    $failed_nodes["count"]++;
+                }
+            }
+
+            if (!realpath($destination)) {
+                $failed_nodes["msg"][] = "            └ node failed: link error -> " . $path['source'];
+                $failed_nodes["count"]++;
+            }
+        } else {
+            if (!symlink($source, $destination)) {
+                $failed_nodes["msg"][] = "            └ node failed: link error -> " . $path['source'];
+                $failed_nodes["count"]++;
+            }
         }
     }
 
